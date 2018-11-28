@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/navigation_home"
+        android:icon="@drawable/ic_home_white_24dp"
+        android:title="@string/title_home" />
+
+    <item
+        android:id="@+id/navigation_myfindings"
+        android:icon="@drawable/ic_leaf"
+        android:title="@string/title_leaf" />
+
+    <item
+        android:id="@+id/navigation_landscape"
+        android:icon="@drawable/ic_compass"
+        android:title="@string/title_compass"/>
+    <item
+        android:id="@+id/navigation_login"
+        android:icon="@drawable/ic_account_circle_black_24dp"
+        android:title="@string/title_activity_login"/>
+
+</menu>
