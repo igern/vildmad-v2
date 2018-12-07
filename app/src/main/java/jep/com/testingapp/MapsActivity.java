@@ -76,8 +76,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public SeekBar seekBar;
     private Location loc_plant=new Location("my plant");
     private int distanceInMetersToPlant;
-    private int fastestIntervalTime=15000;
-    private int intervalTime=30000;
+    private int fastestIntervalTime=5000;
+    private int intervalTime=5000;
+    private int activityState=0;
 
     boolean onPlaying=false;
     public static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
@@ -99,6 +100,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 if (locationResult == null) {
                     return;
                 }
+                Toast.makeText(MapsActivity.this,"location update", Toast.LENGTH_SHORT);
 
                 for (Location location : locationResult.getLocations()) {
                     SearchPlantsAt5km(location);
@@ -127,20 +129,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
     private void handleUserActivity(int type, int confidence) {
+        if(type!=activityState){
+        activityState=type;
+        mFusedLocationClient.removeLocationUpdates(mLocationCallback);
         switch (type) {
 
             case DetectedActivity.RUNNING: {
+
                 fastestIntervalTime=5000;
                 intervalTime=10000;
-                Toast.makeText(this, "running",
-                        Toast.LENGTH_LONG).show();
+
                 break;
             }
             case DetectedActivity.STILL: {
                 fastestIntervalTime=60000;
                 intervalTime=60000;
-                Toast.makeText(this, "still",
-                        Toast.LENGTH_LONG).show();
 
                 break;
             }
@@ -148,12 +151,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             case DetectedActivity.WALKING: {
                 fastestIntervalTime=15000;
                 intervalTime=30000;
-                Toast.makeText(this, "walking",
-                        Toast.LENGTH_LONG).show();
+
 
                 break;
             }
 
+        }
+        createLocationRequest();
         }
 
 
@@ -276,6 +280,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             View view =MapsActivity.this.getSupportFragmentManager().findFragmentById(R.id.distanceToPlant).getView().findViewById(R.id.seekBar);
             seekBar = view.findViewById(R.id.seekBar);
             seekBar.setVisibility(View.VISIBLE);
+            seekBar.setEnabled(false);
 
         }
 
