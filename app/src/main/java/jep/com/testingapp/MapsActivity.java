@@ -1,7 +1,11 @@
 package jep.com.testingapp;
 
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -14,10 +18,13 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.content.LocalBroadcastManager;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -30,6 +37,7 @@ import com.android.volley.toolbox.JsonArrayRequest;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.JsonRequest;
 import com.android.volley.toolbox.Volley;
+import com.google.android.gms.location.DetectedActivity;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
@@ -57,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback,CountPlantAndPlayGame.sendChoosenPlant,CountPlantAndPlayGame.sendStopGame {
 
+    BroadcastReceiver broadcastReceiver;
     private GoogleMap mMap;
     private RequestQueue queue;
     private List<Plant> plants = new ArrayList<>();
@@ -67,6 +76,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public SeekBar seekBar;
     private Location loc_plant=new Location("my plant");
     private int distanceInMetersToPlant;
+    private int fastestIntervalTime=5000;
+    private int intervalTime=5000;
+    private int activityState=0;
 
     boolean onPlaying=false;
     public static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
@@ -88,10 +100,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 if (locationResult == null) {
                     return;
                 }
+                Toast.makeText(MapsActivity.this,"location update", Toast.LENGTH_SHORT);
 
                 for (Location location : locationResult.getLocations()) {
-
-
                     SearchPlantsAt5km(location);
                     trackPositionPlayer(location);
                     huntChoosenPlant(loc_plant,location);
@@ -103,8 +114,59 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 }
             };
         };
+        broadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Log.i("onn", "onReceive: ");
+                if (intent.getAction().equals(Constants.BROADCAST_DETECTED_ACTIVITY)) {
+                    int type = intent.getIntExtra("type", -1);
+                    int confidence = intent.getIntExtra("confidence", 0);
+                    handleUserActivity(type, confidence);
+                }
+            }
+        };
 
 
+    }
+    private void handleUserActivity(int type, int confidence) {
+        if(type!=activityState){
+        activityState=type;
+        mFusedLocationClient.removeLocationUpdates(mLocationCallback);
+        switch (type) {
+
+            case DetectedActivity.RUNNING: {
+
+                fastestIntervalTime=5000;
+                intervalTime=10000;
+
+                break;
+            }
+            case DetectedActivity.STILL: {
+                fastestIntervalTime=60000;
+                intervalTime=60000;
+
+                break;
+            }
+
+            case DetectedActivity.WALKING: {
+                fastestIntervalTime=15000;
+                intervalTime=30000;
+
+
+                break;
+            }
+
+        }
+        createLocationRequest();
+        }
+
+
+
+        if (confidence > Constants.CONFIDENCE) {
+
+
+
+        }
     }
     @Override
     public void onAttachFragment(Fragment fragment) {
@@ -163,6 +225,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             onPlaying=true;
             setTvInvisibleAndBtChange();
+            startTracking();
 
 
         }
@@ -186,6 +249,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
 
         }
+        stopTracking();
     }
     private void setTvVisibleAndButtonChange(){
         if (MapsActivity.this.getSupportFragmentManager().findFragmentById(R.id.playGameFragment)!=null){
@@ -216,6 +280,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             View view =MapsActivity.this.getSupportFragmentManager().findFragmentById(R.id.distanceToPlant).getView().findViewById(R.id.seekBar);
             seekBar = view.findViewById(R.id.seekBar);
             seekBar.setVisibility(View.VISIBLE);
+            seekBar.setEnabled(false);
 
         }
 
@@ -246,8 +311,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     protected void createLocationRequest() {
         LocationRequest mLocationRequest = new LocationRequest();
-        mLocationRequest.setInterval(10000);
-        mLocationRequest.setFastestInterval(5000);
+        mLocationRequest.setInterval(intervalTime);
+        mLocationRequest.setFastestInterval(fastestIntervalTime);
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         if (ContextCompat.checkSelfPermission(this,
@@ -256,6 +321,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             mFusedLocationClient.requestLocationUpdates(mLocationRequest,
                     mLocationCallback,
                     null);
+            Toast.makeText(this, String.valueOf(intervalTime),
+                    Toast.LENGTH_LONG).show();
         }
 
     }
@@ -468,6 +535,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
 
     }
+    private void startTracking() {
+        Intent intent1 = new Intent(MapsActivity.this, BackgroundDetectedActivitiesService.class);
+        Log.i("intent1", intent1.toString());
+        startService(intent1);
+    }
+
+    private void stopTracking() {
+        Intent intent = new Intent(MapsActivity.this, BackgroundDetectedActivitiesService.class);
+        stopService(intent);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver);
+    }
+
     @Override
     public void onResume(){
         super.onResume();
@@ -476,6 +560,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             mMap.clear();
             requestPlants();
         }
+        LocalBroadcastManager.getInstance(this).registerReceiver(broadcastReceiver,
+                new IntentFilter(Constants.BROADCAST_DETECTED_ACTIVITY));
     }
 
     private void checkLocationPermission() {
